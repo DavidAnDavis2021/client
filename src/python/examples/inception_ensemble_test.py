@@ -1,30 +1,4 @@
-#!/usr/bin/env python
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#  * Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-#  * Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in the
-#    documentation and/or other materials provided with the distribution.
-#  * Neither the name of NVIDIA CORPORATION nor the names of its
-#    contributors may be used to endorse or promote products derived
-#    from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
-# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+#!usr/bin/env python
 import argparse
 import numpy as np
 from PIL import Image
@@ -120,81 +94,23 @@ def parse_model(model_metadata, model_config):
             if non_one_cnt > 1:
                 raise Exception("expecting model output to be a vector")
 
-    # Model input must have 3 dims, either CHW or HWC (not counting
-    # the batch dimension), either CHW or HWC
-    input_batch_dim = (model_config.max_batch_size > 0)
-    expected_input_dims = 3 + (1 if input_batch_dim else 0)
-    if len(input_metadata.shape) != expected_input_dims:
-        raise Exception(
-            "expecting input to have {} dimensions, model '{}' input has {}".
-            format(expected_input_dims, model_metadata.name,
-                   len(input_metadata.shape)))
-
-    if ((input_config.format != mc.ModelInput.FORMAT_NCHW) and
-        (input_config.format != mc.ModelInput.FORMAT_NHWC)):
-        raise Exception("unexpected input format " +
-                        mc.ModelInput.Format.Name(input_config.format) +
-                        ", expecting " +
-                        mc.ModelInput.Format.Name(mc.ModelInput.FORMAT_NCHW) +
-                        " or " +
-                        mc.ModelInput.Format.Name(mc.ModelInput.FORMAT_NHWC))
-
-    if input_config.format == mc.ModelInput.FORMAT_NHWC:
-        h = input_metadata.shape[1 if input_batch_dim else 0]
-        w = input_metadata.shape[2 if input_batch_dim else 1]
-        c = input_metadata.shape[3 if input_batch_dim else 2]
-    else:
-        c = input_metadata.shape[1 if input_batch_dim else 0]
-        h = input_metadata.shape[2 if input_batch_dim else 1]
-        w = input_metadata.shape[3 if input_batch_dim else 2]
-
-    return (input_metadata.name, output_metadata.name, c, h, w,
-            input_config.format, input_metadata.datatype)
+    return (input_metadata.name, output_metadata.name, input_metadata.datatype)
 
 
-def preprocess(img, format, dtype, c, h, w, scaling):
-    """
-    Pre-process an image to meet the size, type and format
-    requirements specified by the parameters.
-    """
-    #np.set_printoptions(threshold='nan')
 
-    if c == 1:
-        sample_img = img.convert('L')
-    else:
-        sample_img = img.convert('RGB')
+def postprocess(responses):
+    for response in responses:
+        print(response)
+        batched_result = deserialize_bytes_tensor(response.raw_output_contents[0])
+        contents = np.reshape(batched_result, response.outputs[0].shape)
+        for (index, results) in enumerate(contents):
+            #print("Image '{}':".format(filenames[index]))
+            print("Image '{}':".format("TEST"))
+            for result in results:
+                cls = "".join(chr(x) for x in result).split(':')
+                print(cls)
+                #print("    {} ({}) = {}".format(cls[0], cls[1], cls[2]))
 
-    resized_img = sample_img.resize((w, h), Image.BILINEAR)
-    resized = np.array(resized_img)
-    if resized.ndim == 2:
-        resized = resized[:, :, np.newaxis]
-
-    npdtype = model_dtype_to_np(dtype)
-    typed = resized.astype(npdtype)
-
-    if scaling == 'INCEPTION':
-        scaled = (typed / 127.5) - 1
-    elif scaling == 'VGG':
-        if c == 1:
-            scaled = typed - np.asarray((128,), dtype=npdtype)
-        else:
-            scaled = typed - np.asarray((123, 117, 104), dtype=npdtype)
-    else:
-        scaled = typed
-
-    # Swap to CHW if necessary
-    if format == mc.ModelInput.FORMAT_NCHW:
-        ordered = np.transpose(scaled, (2, 0, 1))
-    else:
-        ordered = scaled
-
-    # Channels are in RGB order. Currently model configuration data
-    # doesn't provide any information as to other channel orderings
-    # (like BGR) so we just assume RGB.
-    return ordered
-
-
-def postprocess(response, filenames, batch_size):
     """
     Post-process response to show classifications.
     """
@@ -206,24 +122,16 @@ def postprocess(response, filenames, batch_size):
         raise Exception("expected 1 output content, got {}".format(
             len(response.raw_output_contents)))
 
-    batched_result = deserialize_bytes_tensor(response.raw_output_contents[0])
-    contents = np.reshape(batched_result, response.outputs[0].shape)
 
-    if len(contents) != batch_size:
-        raise Exception("expected {} results, got {}".format(
-            batch_size, len(contents)))
-    if len(filenames) != batch_size:
-        raise Exception("expected {} filenames, got {}".format(
-            batch_size, len(filenames)))
-
-    for (index, results) in enumerate(contents):
-        print("Image '{}':".format(filenames[index]))
-        for result in results:
-            cls = "".join(chr(x) for x in result).split(':')
-            print("    {} ({}) = {}".format(cls[0], cls[1], cls[2]))
+    #if len(contents) != batch_size:
+    #    raise Exception("expected {} results, got {}".format(
+    #        batch_size, len(contents)))
+    #if len(filenames) != batch_size:
+    #    raise Exception("expected {} filenames, got {}".format(
+    #        batch_size, len(filenames)))
 
 
-def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
+def requestGenerator(input_name, output_name, dtype, FLAGS,
                      result_filenames):
     request = service_pb2.ModelInferRequest()
     request.model_name = FLAGS.model_name
@@ -251,45 +159,26 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
     input = service_pb2.ModelInferRequest().InferInputTensor()
     input.name = input_name
     input.datatype = dtype
-    if format == mc.ModelInput.FORMAT_NHWC:
-        input.shape.extend([FLAGS.batch_size, h, w, c])
-    else:
-        input.shape.extend([FLAGS.batch_size, c, h, w])
+
 
     # Preprocess image into input data according to model requirements
     # Preprocess the images into input data according to model
     # requirements
     image_data = []
     for filename in filenames:
-        img = Image.open(filename)
-        image_data.append(preprocess(img, format, dtype, c, h, w,
-                                     FLAGS.scaling))
+        #img = Image.open(filename)
+        #input_bytes = img.tobytes()
+        file = open(filename,"rb")
+        input_bytes = file.read()
 
-    # Send requests of FLAGS.batch_size images. If the number of
-    # images isn't an exact multiple of FLAGS.batch_size then just
-    # start over with the first images until the batch is filled.
-    image_idx = 0
-    last_request = False
-    while not last_request:
-        input_bytes = None
-        input_filenames = []
         request.ClearField("inputs")
         request.ClearField("raw_input_contents")
-        for idx in range(FLAGS.batch_size):
-            input_filenames.append(filenames[image_idx])
-            if input_bytes is None:
-                input_bytes = image_data[image_idx].tobytes()
-            else:
-                input_bytes += image_data[image_idx].tobytes()
-
-            image_idx = (image_idx + 1) % len(image_data)
-            if image_idx == 0:
-                last_request = True
-
+        input.shape.extend([1,len(input_bytes)])
         request.inputs.extend([input])
-        result_filenames.append(input_filenames)
+        result_filenames.append(filename)
         request.raw_input_contents.extend([input_bytes])
         yield request
+
 
 
 if __name__ == '__main__':
@@ -371,7 +260,7 @@ if __name__ == '__main__':
                                                     version=FLAGS.model_version)
     config_response = grpc_stub.ModelConfig(config_request)
 
-    input_name, output_name, c, h, w, format, dtype = parse_model(
+    input_name, output_name, dtype = parse_model(
         metadata_response, config_response.config)
 
     # Send requests of FLAGS.batch_size images. If the number of
@@ -382,39 +271,12 @@ if __name__ == '__main__':
     result_filenames = []
 
     # Send request
-    if FLAGS.streaming:
-        for response in grpc_stub.ModelStreamInfer(
-                requestGenerator(input_name, output_name, c, h, w, format,
-                                 dtype, FLAGS, result_filenames)):
-            responses.append(response)
-    else:
-        for request in requestGenerator(input_name, output_name, c, h, w,
-                                        format, dtype, FLAGS, result_filenames):
-            if not FLAGS.async_set:
-                responses.append(grpc_stub.ModelInfer(request))
-            else:
-                requests.append(grpc_stub.ModelInfer.future(request))
+    for request in requestGenerator(input_name, output_name, dtype, FLAGS, result_filenames):
+        responses.append(grpc_stub.ModelInfer(request))
 
-    # For async, retrieve results according to the send order
-    if FLAGS.async_set:
-        for request in requests:
-            responses.append(request.result())
 
     error_found = False
-    idx = 0
-    for response in responses:
-        if FLAGS.streaming:
-            if response.error_message != "":
-                error_found = True
-                print(response.error_message)
-            else:
-                postprocess(response.infer_response, result_filenames[idx],
-                            FLAGS.batch_size)
-        else:
-            postprocess(response, result_filenames[idx], FLAGS.batch_size)
-        idx += 1
 
-    if error_found:
-        sys.exit(1)
+    postprocess(responses)
 
     print("PASS")
