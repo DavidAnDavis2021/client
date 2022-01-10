@@ -1,0 +1,3 @@
+/home/ubuntu/vendor/triton-inference-server/client/src/grpc_generated/java/library/target/generated-sources/protobuf/java/inference/GrpcService.java
+/home/ubuntu/vendor/triton-inference-server/client/src/grpc_generated/java/library/target/generated-sources/protobuf/grpc-java/inference/GRPCInferenceServiceGrpc.java
+/home/ubuntu/vendor/triton-inference-server/client/src/grpc_generated/java/library/target/generated-sources/protobuf/java/inference/ModelConfigOuterClass.java

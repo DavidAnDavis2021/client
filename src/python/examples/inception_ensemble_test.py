@@ -154,6 +154,7 @@ def requestGenerator(input_name, output_name, dtype, FLAGS,
     output = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
     output.name = output_name
     output.parameters['classification'].int64_param = FLAGS.classes
+    #print("TEST ", output)
     request.outputs.extend([output])
 
     input = service_pb2.ModelInferRequest().InferInputTensor()
@@ -272,6 +273,10 @@ if __name__ == '__main__':
 
     # Send request
     for request in requestGenerator(input_name, output_name, dtype, FLAGS, result_filenames):
+        print("CHECK THIS VALUE", request.outputs[0].parameters['classification'])
+        f = open("PYTHON_MODEL_REQUEST.pb", "wb")
+        f.write(request.SerializeToString())
+        f.close()
         responses.append(grpc_stub.ModelInfer(request))
 
 

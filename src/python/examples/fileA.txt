@@ -1,0 +1,20 @@
+./TMP_inception21k_onnx_ensemble.pb
+model_name: "inception21k_onnx_ensemble"
+inputs {
+  name: "INPUT"
+  datatype: "UINT8"
+  shape: 1
+  shape: 16475
+  contents {
+  }
+}
+outputs {
+  name: "OUTPUT"
+  parameters {
+    key: "classification"
+    value {
+      int64_param: 8
+    }
+  }
+}
+
