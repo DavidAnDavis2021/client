@@ -53,52 +53,9 @@ def deserialize_bytes_tensor(encoded_tensor):
     return (np.array(strs, dtype=np.object_))
 
 
-def parse_model(model_metadata, model_config):
-    """
-    Check the configuration of a model to make sure it meets the
-    requirements for an image classification network (as expected by
-    this client)
-    """
-    if len(model_metadata.inputs) != 1:
-        raise Exception("expecting 1 input, got {}".format(
-            len(model_metadata.inputs)))
-    if len(model_metadata.outputs) != 1:
-        raise Exception("expecting 1 output, got {}".format(
-            len(model_metadata.outputs)))
-
-    if len(model_config.input) != 1:
-        raise Exception(
-            "expecting 1 input in model configuration, got {}".format(
-                len(model_config.input)))
-
-    input_metadata = model_metadata.inputs[0]
-    input_config = model_config.input[0]
-    output_metadata = model_metadata.outputs[0]
-
-    if output_metadata.datatype != "FP32":
-        raise Exception("expecting output datatype to be FP32, model '" +
-                        model_metadata.name + "' output type is " +
-                        output_metadata.datatype)
-
-    # Output is expected to be a vector. But allow any number of
-    # dimensions as long as all but 1 is size 1 (e.g. { 10 }, { 1, 10
-    # }, { 10, 1, 1 } are all ok). Ignore the batch dimension if there
-    # is one.
-    output_batch_dim = (model_config.max_batch_size > 0)
-    non_one_cnt = 0
-    for dim in output_metadata.shape:
-        if output_batch_dim:
-            output_batch_dim = False
-        elif dim > 1:
-            non_one_cnt += 1
-            if non_one_cnt > 1:
-                raise Exception("expecting model output to be a vector")
-
-    return (input_metadata.name, output_metadata.name, input_metadata.datatype)
-
-
 
 def postprocess(responses):
+    print("RECEIVED {} RESPONSES".format(len(responses)))
     for response in responses:
         print(response)
         batched_result = deserialize_bytes_tensor(response.raw_output_contents[0])
@@ -253,19 +210,19 @@ if __name__ == '__main__':
 
     # Make sure the model matches our requirements, and get some
     # properties of the model that we need for preprocessing
-    metadata_request = service_pb2.ModelMetadataRequest(
-        name=FLAGS.model_name, version=FLAGS.model_version)
-    metadata_response = grpc_stub.ModelMetadata(metadata_request)
+    #metadata_request = service_pb2.ModelMetadataRequest(
+    #    name=FLAGS.model_name, version=FLAGS.model_version)
+    #metadata_response = grpc_stub.ModelMetadata(metadata_request)
 
-    config_request = service_pb2.ModelConfigRequest(name=FLAGS.model_name,
-                                                    version=FLAGS.model_version)
-    config_response = grpc_stub.ModelConfig(config_request)
+    #config_request = service_pb2.ModelConfigRequest(name=FLAGS.model_name,
+    #                                               version=FLAGS.model_version)
+    #config_response = grpc_stub.ModelConfig(config_request)
 
-    input_name, output_name, dtype = parse_model(
-        metadata_response, config_response.config)
+    #input_name, output_name, dtype = parse_model(
+    #    metadata_response, config_response.config)
+    #This part only works for our inceptions21k model
+    input_name, output_name, dtype = "INPUT", "OUTPUT", "UINT8"
 
-
-    print("Parsed parameters:", input_name, output_name, dtype)
 
     # Send requests of FLAGS.batch_size images. If the number of
     # images isn't an exact multiple of FLAGS.batch_size then just
